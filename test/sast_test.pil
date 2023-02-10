@@ -1,0 +1,15 @@
+constant %N = 4;
+
+namespace Global(%N);
+    pol constant L1;    // 1, 0, 0, 0, 0
+
+namespace PermutationExample(%N);
+
+    pol constant b1,b2;
+    pol commit a1[2], a2, isSetter;
+
+    isSetter * (1-isSetter) = 0;
+
+    pol inter = a1[0] + a2;
+    inter' = 0;
+    b1+1 {inter+a1[1], inter+isSetter} in b2{inter, isSetter};

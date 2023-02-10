@@ -39,7 +39,6 @@ async function compileAndRun() {
 
         console.log("------ %s -------", checker.name);
         await checker(piller); //run the checker
-        console.log("----------------");
     }
 
     return piller;
