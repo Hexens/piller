@@ -77,7 +77,6 @@ namespace Main(%N);
     pol commit inCntArith, inCntBinary, inCntMemAlign, inCntKeccakF, inCntPoseidonG, inCntPaddingPG;
     pol commit incCounter;
 
-
 ///////////
 // Intermediary calculations and checks
 ///////////
@@ -208,6 +207,7 @@ namespace Main(%N);
 
     pol commit lJmpnCondValue;
     pol jmpnCondValue = JMPN*(isNeg*2**32 + op0);
+    isNeg * (1 - isNeg) = 0;
 
     lJmpnCondValue in Global.STEP;
 
@@ -227,6 +227,7 @@ namespace Main(%N);
                     2**27*hJmpnCondValueBit[4] + 2**26*hJmpnCondValueBit[3] + 2**25*hJmpnCondValueBit[2] + 2**24*hJmpnCondValueBit[1] +
                     2**23*hJmpnCondValueBit[0] + lJmpnCondValue;
 
+
     /// RCX check zero
     pol commit RCXInv;
     pol RCXIsZero = 1 - RCX*RCXInv;
@@ -242,6 +243,7 @@ namespace Main(%N);
     pol diffMem = isMaxMem* ( (maxMemRel - MAXMEM) -
                        (MAXMEM - maxMemRel) ) +
               (MAXMEM - maxMemRel);
+    isMaxMem * (1 - isMaxMem) = 0;
 
     diffMem in Global.BYTE2;
     pol maxMemCalculated = isMaxMem*(addrRel - MAXMEM) + MAXMEM;
@@ -335,6 +337,8 @@ namespace Main(%N);
     // if elseAddr wasn't specified on zkasm, compiler put current address + 1
     zkPC' = doJMP * (finalJmpAddr - nextNoJmpZkPC) + elseJMP * (finalElseAddr - nextNoJmpZkPC) + nextNoJmpZkPC;
 
+    zkPC * Global.L1 = 0;
+
     (A0-op0)*assert = 0;
     (A1-op1)*assert = 0;
     (A2-op2)*assert = 0;
@@ -383,6 +387,9 @@ namespace Main(%N);
 
     public chainId = GAS(0);
     Global.L1 * (GAS - :chainId) = 0;
+
+    public forkId = CTX(0);
+    Global.L1 * (CTX - :forkId) = 0;
 
     public newStateRoot0 = SR0(%N-1);
     public newStateRoot1 = SR1(%N-1);
@@ -523,13 +530,13 @@ namespace Main(%N);
     {
         CONST0, CONST1, CONST2, CONST3, CONST4, CONST5, CONST6, CONST7,
         inA, inB, inC, inROTL_C, inD, inE, inSR, inFREE,
-        inCTX, inSP, inPC, inGAS, inMAXMEM, inHASHPOS, inSTEP, inRR, inHASHPOS, inRCX,
+        inCTX, inSP, inPC, inGAS, inMAXMEM, inHASHPOS, inSTEP, inRR, inRCX,
         inCntArith, inCntBinary, inCntKeccakF, inCntMemAlign, inCntPaddingPG, inCntPoseidonG,
         operations, offset, incStack, binOpcode, jmpAddr, elseAddr, zkPC
     } in {
         Rom.CONST0, Rom.CONST1, Rom.CONST2, Rom.CONST3, Rom.CONST4, Rom.CONST5, Rom.CONST6, Rom.CONST7,
         Rom.inA, Rom.inB, Rom.inC, Rom.inROTL_C, Rom.inD, Rom.inE, Rom.inSR, Rom.inFREE,
-        Rom.inCTX, Rom.inSP, Rom.inPC, Rom.inGAS, Rom.inMAXMEM, Rom.inHASHPOS, Rom.inSTEP, Rom.inRR, Rom.inHASHPOS, Rom.inRCX,
+        Rom.inCTX, Rom.inSP, Rom.inPC, Rom.inGAS, Rom.inMAXMEM, Rom.inHASHPOS, Rom.inSTEP, Rom.inRR, Rom.inRCX,
         Rom.inCntArith, Rom.inCntBinary, Rom.inCntKeccakF, Rom.inCntMemAlign, Rom.inCntPaddingPG, Rom.inCntPoseidonG,
         Rom.operations, Rom.offset, Rom.incStack, Rom.binOpcode, Rom.jmpAddr, Rom.elseAddr, Rom.line
     };
@@ -719,7 +726,7 @@ namespace Main(%N);
         op0, op1, op2, op3,
         op4, op5, op6, op7
     } in
-    PaddingPG.crLatch {
+    PaddingPG.crLatch * PaddingPG.crValid {
         PaddingPG.addr,
         PaddingPG.len - PaddingPG.rem - PaddingPG.crLen + 1,
         PaddingPG.crLen,

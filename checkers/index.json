@@ -1,4 +1,8 @@
 [
   "zero_one.js",
-  "zero_one_plookup_permutation.js"
+  "zero_one_plookup_permutation.js",
+  "plookup_permutation_selector_zero_one.js",
+  "scraped_executor_zero_one_violation.js",
+  "inverse_check.js",
+  "no_strict_check_polynomials.js"
 ]

@@ -1,6 +1,6 @@
 function Piller(_ctx, _mainNamespace, _compile, _F) {
     //set the context object and the main namespace
-    //we need to specify the main namespace as in case of PIL is using includes/different namespaces
+    //we need to specify the main namespace, for some cases in PIL
     //it will be the distinguishing factor for plookup/perm/connect checkers
     this.ctx = _ctx;
     this.mainNamespace = _mainNamespace ? _mainNamespace : "Main";
@@ -17,12 +17,14 @@ function Piller(_ctx, _mainNamespace, _compile, _F) {
     return this;
 }
 
-Piller.prototype.getPolReferencesFromId = function (expression) {
+//return the polynomial reference based on id
+Piller.prototype.getPolReferencesFromExpression = function (expression) {
     let type = expression.op === "exp" ? "imP" : (expression.op === "cm" ? "cmP" : "constP");
 
     return this.polNames.filter(ref => this.polReferences[ref].type === type && this.polReferences[ref].id === expression.id);
 }
 
+//parses the expression tree and populates expressionMap and polToExprMap preserving the connected polynomials and expressions
 Piller.prototype.parseExpressions = function () {
     this.expressionMap = [];
     this.polToExprMap = {};
@@ -45,7 +47,7 @@ Piller.prototype.parseExpressions = function () {
                     self.expressionMap[childId].backRefs = [currentId];
             }
 
-            let refNames = self.getPolReferencesFromId(expression);
+            let refNames = self.getPolReferencesFromExpression(expression);
             if (refNames.length > 0) {
                 let refPol = {};
                 refPol[refNames[0]] = self.polReferences[refNames[0]];
@@ -84,55 +86,14 @@ Piller.prototype.parseExpressions = function () {
     }
 }
 
-
-Piller.prototype.getExpressionsByCtxExprIds = function (ctxExprIds) {
-    let resultExprs = [];
-
-    for (let expr of this.expressionMap) {
-        if (ctxExprIds.includes(expr.ctxExprId))
-            resultExprs.push(expr);
-    }
-
-    return resultExprs;
-}
-
-Piller.prototype.getPlookupLeftExpressions = function () {
-    let resultPlookups = [];
-
-    for (let plookup of this.ctx.plookupIdentities) {
-        resultPlookups = resultPlookups.concat(this.getExpressionsByCtxExprIds(plookup.f));
-    }
-
-    return resultPlookups;
-}
-
-Piller.prototype.getPlookupRightExpressions = function () {
-    let resultPlookups = [];
-
-    for (let plookup of this.ctx.plookupIdentities) {
-        resultPlookups = resultPlookups.concat(this.getExpressionsByCtxExprIds(plookup.t));
-    }
-
-    return resultPlookups;
-}
-
-Piller.prototype.getPermutationLeftExpressions = function () {
-    let resultPermutations = [];
-
-    for(let plookup of this.ctx.permutationIdentities){
-        resultPermutations = resultPermutations.concat(this.getExpressionsByCtxExprIds(plookup.f));
-    }
-
-    return resultPermutations;
-}
-
+//parses the references, as we need more structured information than the compiler gives
 Piller.prototype.parseReferences = function () {
     this.polNames = [];
     this.polReferences = {};
 
     const refs = Object.keys(this.ctx.references);
 
-    //we loop in for because we need to "actually" reconstruct to the array polynomials (e.g. pol A[32])
+    //need loop because we need to "actually" reconstruct the array polynomials (e.g. pol A[32])
     for (let ref of refs) {
 
         if (this.ctx.references[ref].isArray) {
@@ -153,6 +114,7 @@ Piller.prototype.parseReferences = function () {
     }
 }
 
+//populate the committed polynomials objects
 Piller.prototype.parseCommitedPols = function (_namespace) {
     let namespace = _namespace ? _namespace : '';
 
@@ -170,6 +132,7 @@ Piller.prototype.parseCommitedPols = function (_namespace) {
 
 }
 
+//populate the constant polynomials objects
 Piller.prototype.parseConstantPols = function (_namespace) {
     let namespace = _namespace ? _namespace : '';
 
@@ -187,6 +150,7 @@ Piller.prototype.parseConstantPols = function (_namespace) {
 
 }
 
+//populate the intermediate polynomials objects
 Piller.prototype.parseIntermediatePols = function (_namespace) {
     let namespace = _namespace ? _namespace : '';
 
@@ -199,11 +163,12 @@ Piller.prototype.parseIntermediatePols = function (_namespace) {
 
     this.intermediatePols = this.intermediatePolsNames.reduce(
         (cur, key) => {
-            return Object.assign(cur, {[key]: this.constantPolsNames[key]})
+            return Object.assign(cur, {[key]: this.polReferences[key]})
         }, {});
 
 }
 
+//filters polynomial reference object by regex
 Piller.prototype.filterPolWithRegex = function (regex, pols) {
     const polynomials = pols ? pols : this.polReferences;
 
@@ -215,11 +180,13 @@ Piller.prototype.filterPolWithRegex = function (regex, pols) {
         }, {});
 }
 
+//filters polynomial names array by regex
 Piller.prototype.filterPolNamesWithRegex = function (regex, pols) {
     return pols.filter(pol => pol.search(regex) !== -1);
 }
 
-Piller.prototype.expressionsEq = function (value, _expressions) {
+//finds and returns the expressions that have < ... = X > structure
+Piller.prototype.getExpressionsEq = function (value, _expressions) {
     const expressions = _expressions ? _expressions : this.expressionMap;
 
     return expressions
@@ -227,6 +194,7 @@ Piller.prototype.expressionsEq = function (value, _expressions) {
         .filter(expr => expr.expression.values.filter(v => v.value == value).length !== 0);
 }
 
+//creates (compiles) expressions that can be emulated later and filtered with
 Piller.prototype.createEmulatedExpression = async function (pilString, _config) {
     const config = _config ? _config : {compileFromString: true};
 
@@ -234,32 +202,79 @@ Piller.prototype.createEmulatedExpression = async function (pilString, _config) 
     return ctx.expressions;
 }
 
-Piller.prototype.filterExpressionsEmulated = function (expressionsEmulated, _expressions) {
+Piller.prototype.isExpressionPolynomial = function (expression) {
+    return expression.op === "exp" || expression.op === "cm" || expression.op === "const"
+}
+
+//filters expressions with emulated expressions, strict mode means that if polynomials in the emulated formula will be distinct
+//e.g:  A + B = 0 is same as A + A = 0 when strict == false
+//but   A + B = 0 is not same as A + A = 0 when strict == true
+Piller.prototype.filterEmulatedExpressions = function (expressionsEmulated, _expressions, strict) {
     let expressions = _expressions ? _expressions : this.expressionMap;
 
+    const self = this;
+    //we need to keep the mapping of matched polynomials in case it is a strict match
+    let polMatch;
     const recursiveCheck = function (exprEmul, expr) {
         if (exprEmul === undefined && expr === undefined)
             return true;
 
-        if (Array.isArray(exprEmul.values) && Array.isArray(expr.values))
-            return recursiveCheck(exprEmul.values[0], expr.values[0]) && recursiveCheck(exprEmul.values[1], expr.values[1]);
+        if (Array.isArray(exprEmul.values) && Array.isArray(expr.values)) {
+            if (exprEmul.values.length !== expr.values.length)
+                return false;
 
-        return exprEmul.op === expr.op && exprEmul.value == expr.value;
+            let res = recursiveCheck(exprEmul.values[0], expr.values[0]);
+
+            for (let i = 1; i < expr.values.length; i++) {
+                res = res && recursiveCheck(exprEmul.values[i], expr.values[i])
+            }
+
+            //in case the operation is MUL or ADD we want to check for expressions that are essentially equal, but have different operand ordering
+            //e.g. A * B = B * A
+            //     A + B = B + A
+            if ((expr.op === exprEmul.op && exprEmul.op === "mul") || (expr.op === exprEmul.op && exprEmul.op === "add"))
+                res = res ?
+                    res :
+                    (res || (recursiveCheck(exprEmul.values[1], expr.values[0]) && recursiveCheck(exprEmul.values[0], expr.values[1])));
+            return res;
+        }
+
+        //we purposely use == for values
+        if (exprEmul.value == expr.value && exprEmul.next === expr.next) {
+            if (strict && (exprEmul.op === expr.op)) {
+                let exprId = `expr${expr.op}${expr.id}`;
+                let emulId = `exprEmul${expr.op}${exprEmul.id}`;
+                //we are in a strict matching mode, need to check that it is the same polynomial emulated as in previous matches
+                //if it's the first time, set the mapping
+                if (polMatch[exprId] === undefined && polMatch[emulId] === undefined) {
+                    polMatch[exprId] = exprEmul.id;
+                    polMatch[emulId] = expr.id;
+                }
+                return polMatch[emulId] === expr.id && polMatch[exprId] === exprEmul.id;
+            } else if (!strict) {
+                return self.isExpressionPolynomial(exprEmul) === self.isExpressionPolynomial(expr);
+            }
+            return false;
+        } else
+            return false;
 
     }
 
     let resultExpressions = [];
 
     for (let i = 0; i < expressionsEmulated.length; i++) {
-        for (let j = 0; j < expressions.length; j++)
+        for (let j = 0; j < expressions.length; j++) {
+            polMatch = {}; //reset the matching map
             if (recursiveCheck(expressionsEmulated[i], expressions[j].expression)) {
                 resultExpressions.push(expressions[j]);
             }
+        }
     }
     return resultExpressions;
 
 }
 
+//find recursively and return polynomial names that are reachable from given expressions
 Piller.prototype.getPolNamesFromExpressions = function (_expressions) {
     let expressions = _expressions ? _expressions : this.expressionMap;
 
@@ -271,7 +286,7 @@ Piller.prototype.getPolNamesFromExpressions = function (_expressions) {
 
         if (expression.op === "exp" || expression.op === "cm" || expression.op === "const") {
 
-            let refNames = self.getPolReferencesFromId(expression);
+            let refNames = self.getPolReferencesFromExpression(expression);
 
             if (refNames.length > 0)
                 resultPols[refNames[0]] = true;
@@ -287,16 +302,18 @@ Piller.prototype.getPolNamesFromExpressions = function (_expressions) {
     return Object.keys(resultPols);
 }
 
-//This function is for internal calls
 //returns the paths from any expression array to commited polynomials
-//can be used for plookup rules and such
-Piller.prototype.getTaintedCommitedPolsFromExpressions = function (_expressions) {
+//can be used for plookup/permutation rules and others
+Piller.prototype.getTaintedCommitedPolsFromExpressions = function (_expressions, level) {
     let expressions = _expressions ? _expressions : this.expressionMap;
 
     const self = this;
 
     let resultPols = {};
     const recursiveFindCommitedPols = function (expr, path) {
+        if (level !== undefined && path.length > level)
+            return;
+
         let expression = expr.expression;
 
         if (expression.op === "cm") {
@@ -322,5 +339,126 @@ Piller.prototype.getTaintedCommitedPolsFromExpressions = function (_expressions)
     return resultPols;
 }
 
+//finds and returns expression object based on compiler context id (as they are not the same as ids that piller uses)
+Piller.prototype.getExpressionsByCtxExprIds = function (ctxExprIds) {
+    let resultExprs = [];
+
+    for (let expr of this.expressionMap) {
+        if (ctxExprIds.includes(expr.ctxExprId))
+            resultExprs.push(expr);
+    }
+
+    return resultExprs;
+}
+
+//returns list of expressions that correspond to the left side of plookup expressions
+Piller.prototype.getPlookupLeftExpressions = function () {
+    let resultPlookups = [];
+
+    for (let plookup of this.ctx.plookupIdentities) {
+        resultPlookups = resultPlookups.concat(this.getExpressionsByCtxExprIds(plookup.f));
+    }
+
+    return resultPlookups;
+}
+
+//returns list of expressions that correspond to the right side of plookup expressions
+Piller.prototype.getPlookupRightExpressions = function () {
+    let resultPlookups = [];
+
+    for (let plookup of this.ctx.plookupIdentities) {
+        resultPlookups = resultPlookups.concat(this.getExpressionsByCtxExprIds(plookup.t));
+    }
+
+    return resultPlookups;
+}
+
+//returns list expressions that correspond to the left side's selector of plookup expressions
+Piller.prototype.getPlookupLeftSelectorExpressions = function () {
+    let resultPlookups = [];
+
+    for (let plookup of this.ctx.plookupIdentities) {
+        resultPlookups = resultPlookups.concat(this.getExpressionsByCtxExprIds([plookup.selF]));
+    }
+
+    return resultPlookups;
+}
+
+//returns list expressions that correspond to the right side's selector of plookup expressions
+Piller.prototype.getPlookupRightSelectorExpressions = function () {
+    let resultPlookups = [];
+
+    for (let plookup of this.ctx.plookupIdentities) {
+        resultPlookups = resultPlookups.concat(this.getExpressionsByCtxExprIds([plookup.selT]));
+    }
+
+    return resultPlookups;
+}
+
+//returns list of expressions that correspond to the left side of permutation expressions
+Piller.prototype.getPermutationLeftExpressions = function () {
+    let resultPermutations = [];
+
+    for (let perm of this.ctx.permutationIdentities) {
+        resultPermutations = resultPermutations.concat(this.getExpressionsByCtxExprIds(perm.f));
+    }
+
+    return resultPermutations;
+}
+
+//returns list of expressions that correspond to the right side of permutation expressions
+Piller.prototype.getPermutationRightExpressions = function () {
+    let resultPermutations = [];
+
+    for (let perm of this.ctx.permutationIdentities) {
+        resultPermutations = resultPermutations.concat(this.getExpressionsByCtxExprIds(perm.t));
+    }
+
+    return resultPermutations;
+}
+
+//returns list expressions that correspond to the left side's selector of permutation expressions
+Piller.prototype.getPermutationLeftSelectorExpressions = function () {
+    let resultPermutations = [];
+
+    for (let perm of this.ctx.permutationIdentities) {
+        resultPermutations = resultPermutations.concat(this.getExpressionsByCtxExprIds([perm.selF]));
+    }
+
+    return resultPermutations;
+}
+
+//returns list expressions that correspond to the right side's selector of permutation expressions
+Piller.prototype.getPermutationLeftSelectorExpressions = function () {
+    let resultPermutations = [];
+
+    for (let perm of this.ctx.permutationIdentities) {
+        resultPermutations = resultPermutations.concat(this.getExpressionsByCtxExprIds([perm.selT]));
+    }
+
+    return resultPermutations;
+}
+
+//returns list of expressions that correspond to the left side of connect expressions
+Piller.prototype.getConnectLeftExpressions = function () {
+    let resultConnect = [];
+
+    for (let conn of this.ctx.connectionIdentities) {
+        resultConnect = resultConnect.concat(this.getExpressionsByCtxExprIds(conn.pols));
+    }
+
+    return resultConnect;
+}
+
+//returns list of expressions that correspond to the right side of connect expressions
+Piller.prototype.getConnectRightExpressions = function () {
+    let resultConnect = [];
+
+    for (let conn of this.ctx.connectionIdentities) {
+        resultConnect = resultConnect.concat(this.getExpressionsByCtxExprIds(conn.connections));
+    }
+
+    return resultConnect;
+}
 
 module.exports = Piller;

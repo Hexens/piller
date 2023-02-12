@@ -1,4 +1,4 @@
-const latchRegex = /\.(is|set|in)[a-zA-Z]+/;
+const latchRegex = /\.(is|last|first|sel|in|set|latch).+/i;
 
 async function zeroOnePlookupPermutation(piller) {
     //filter latter polynomials based on the regex
@@ -11,7 +11,7 @@ async function zeroOnePlookupPermutation(piller) {
     (1-A)*A = 0;
     `);
 
-    let zeroOnesExpr = piller.filterExpressionsEmulated(emulated);
+    let zeroOnesExpr = piller.filterEmulatedExpressions(emulated);
     let zeroOnesPols = piller.getPolNamesFromExpressions(zeroOnesExpr);
 
     let difference = Object.keys(latchers).filter(x => !zeroOnesPols.includes(x));
@@ -21,13 +21,13 @@ async function zeroOnePlookupPermutation(piller) {
 
     //taint all the polynomials from the left side of plookups
     let plookupLeftIds = piller.getPlookupLeftExpressions();
-    let taintedCommitedPols = piller.getTaintedCommitedPolsFromExpressions(plookupLeftIds);
+    let taintedCommitedPols = piller.getTaintedCommitedPolsFromExpressions(plookupLeftIds, 2); //TODO rethink the level
 
     difference = difference.filter(x => !Object.keys(taintedCommitedPols).includes(x));
 
     //taint all the polynomials from the left side of permutations
     let permLeftIds = piller.getPermutationLeftExpressions();
-    let taintedPermCommitedPols = piller.getTaintedCommitedPolsFromExpressions(permLeftIds);
+    let taintedPermCommitedPols = piller.getTaintedCommitedPolsFromExpressions(permLeftIds, 2);
 
     difference = difference.filter(x => !Object.keys(taintedPermCommitedPols).includes(x));
 

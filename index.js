@@ -29,15 +29,15 @@ async function compileAndRun() {
     const ctx = await compile(F, fullFileName, null, {}); // config is set to {} for now, maybe will change
 
     //initialize piller with ctx
-    const piller = new Piller(ctx, "Main", compile, F);
+    let piller = new Piller(ctx, "Main", compile, F);
 
     //loop the checkers and run them
     const checkerFiles = require(checkerPath);
 
-    for(let file of checkerFiles) {
+    for (let file of checkerFiles) {
         let checker = require(path.join(process.cwd(), checkerPath, file));
 
-        console.log("------ %s -------", checker.name);
+        console.log("\n\n------ %s -------", checker.name);
         await checker(piller); //run the checker
     }
 
