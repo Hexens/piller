@@ -1,4 +1,4 @@
-const latchRegex = /\.(is|last|first|sel|in|set|latch).+/i;
+const latchRegex = /\.(is|last|first|sel|in|set|latch)[A-Z].*/;
 
 async function zeroOnePlookupPermutation(piller) {
     //filter latter polynomials based on the regex

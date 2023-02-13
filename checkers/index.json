@@ -1,4 +1,5 @@
 [
+  "permutation_plookup_selector_constraints.js",
   "zero_one.js",
   "zero_one_plookup_permutation.js",
   "plookup_permutation_selector_zero_one.js",

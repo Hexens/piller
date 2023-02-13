@@ -1,6 +1,7 @@
 const process = require('process');
 
 async function noStrictCheckPolynomials(piller) {
+    return; //TODO: need to enable this manually, as the result is very bogus and needs verification
     let targetPolynomials = piller.commitedPolsNames;
 
     let emulated = await piller.createEmulatedExpression(`
@@ -29,6 +30,12 @@ async function noStrictCheckPolynomials(piller) {
     let taintedPermCommitedPols = piller.getTaintedCommitedPolsFromExpressions(permLeftIds);
 
     difference = difference.filter(x => !Object.keys(taintedPermCommitedPols).includes(x));
+
+    //taint all the polynomials from the left side of connections
+    let connLeftIds = piller.getConnectLeftExpressions();
+    let taintedConnCommittedPols = piller.getTaintedCommitedPolsFromExpressions(connLeftIds);
+
+    difference = difference.filter(x => !Object.keys(taintedConnCommittedPols).includes(x));
 
 
     console.log("All polynomials that dont have strict constraints (most likely a bigger list needed to review manually) : ");

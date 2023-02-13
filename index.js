@@ -4,7 +4,7 @@ const path = require("path");
 const version = require("./package.json").version;
 const compile = require("pilcom").compile;
 const F = require("pilcom").F; //is actually ffjavascript.F1Field((1n<<64n)-(1n<<32n)+1n );
-const Piller = require("./piller.js");
+const Piller = require("./Piller.js");
 
 
 //Constants declarations
@@ -40,10 +40,8 @@ async function compileAndRun() {
         console.log("\n\n------ %s -------", checker.name);
         await checker(piller); //run the checker
     }
-
-    return piller;
 }
 
-compileAndRun().then((piller) => {
+compileAndRun().then(() => {
     console.log("PILLER FINISHED");
 })
